@@ -78,7 +78,10 @@ if user_input:
                             f"Beds: {scraped.get('beds', 'N/A')}\n"
                             f"Baths: {scraped.get('baths', 'N/A')}\n"
                             f"Sqft: {scraped.get('sqft', 'N/A')}\n"
-                            f"Description: {scraped.get('description', 'N/A')[:300]}...\n\n"
+                            description = scraped.get("description") or "N/A"
+description_short = description[:300] if isinstance(description, str) else "N/A"
+
+f"Description: {description_short}...\n\n"
                             f"60% ARV Cash Offer: ${cash_offer:,}\n"
                             "Creative Subto Offer: Full price + seller equity payout terms"
                         )

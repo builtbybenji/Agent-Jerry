@@ -68,3 +68,4 @@ if user_input:
 with st.expander("💬 Show Chat History"):
     for msg in st.session_state.chat_history:
         st.write(f"**{msg['role'].capitalize()}**: {msg['content']}")
+

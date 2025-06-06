@@ -3,4 +3,5 @@ requests
 serpapi
 reportlab
 beautifulsoup4
- 
+fpdf
+

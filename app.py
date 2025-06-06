@@ -1,14 +1,25 @@
 
 import streamlit as st
 import os
+import re
 from openai import OpenAI
 from helpers.property_api import get_property_data
+from helpers.web_search import search_property_google
+from helpers.summary_export import create_pdf_report
 
-# Load API keys
+def parse_address(raw_input):
+    raw = raw_input.strip()
+    if "," in raw and len(raw.split(",")) == 4:
+        return [x.strip() for x in raw.split(",")]
+    pattern = r"(\d+\s[\w\s]+),?\s*([\w\s]+),?\s*([A-Z]{2}),?\s*(\d{5})"
+    match = re.search(pattern, raw)
+    if match:
+        return [match.group(1), match.group(2), match.group(3), match.group(4)]
+    return None
+
 api_key = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
 client = OpenAI(api_key=api_key)
 
-# Jerry's prompt
 jerry_personality = """
 You are Jerry, a real estate deal analyzer assistant. You collect:
 - Property address & condition
@@ -25,13 +36,14 @@ st.title("🏠 Jerry – Real Estate Deal Analyzer")
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [{"role": "system", "content": jerry_personality}]
 
-user_input = st.text_input("Enter message or property address (format: street, city, state, zip):")
+user_input = st.text_input("Enter property info (full or casual address):")
 
 if user_input:
     st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-    if "," in user_input and len(user_input.split(",")) == 4:
-        street, city, state, zip_code = [x.strip() for x in user_input.split(",")]
+    parsed_address = parse_address(user_input)
+    if parsed_address:
+        street, city, state, zip_code = parsed_address
         data = get_property_data(street, city, state, zip_code)
 
         if data and "data" in data:
@@ -47,25 +59,38 @@ if user_input:
 🧾 **Last Sale/Comps:** {comps[0] if comps else 'N/A'}
 """
                 st.markdown(analysis)
+
+                # PDF generation
+                pdf_path = f"/tmp/{street.replace(' ', '_')}_{zip_code}_summary.pdf"
+                create_pdf_report(f"{street}, {city}, {state} {zip_code}", valuation, cash_offer, comps, pdf_path)
+                with open(pdf_path, "rb") as pdf_file:
+                    st.download_button(
+                        label="📄 Download Property Summary PDF",
+                        data=pdf_file,
+                        file_name=os.path.basename(pdf_path),
+                        mime="application/pdf"
+                    )
+
                 st.session_state.chat_history.append({"role": "assistant", "content": analysis})
             else:
                 st.warning("No valuation data available.")
         else:
-            st.error("Couldn’t fetch property info.")
+            st.warning("Primary API failed. Trying web search for public data...")
+            google_data = search_property_google(f"{street}, {city}, {state} {zip_code}")
+            if google_data and "organic_results" in google_data:
+                links = google_data["organic_results"]
+                st.markdown("🔍 Found public listings:")
+                for item in links[:3]:
+                    st.markdown(f"- [{item['title']}]({item['link']})")
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": f"Displayed public listing results from Google for: {street}, {city}, {state} {zip_code}"
+                })
+            else:
+                st.error("Couldn't find any public listings or property data.")
     else:
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=st.session_state.chat_history,
-                temperature=0.6
-            )
-            reply = response.choices[0].message.content
-            st.session_state.chat_history.append({"role": "assistant", "content": reply})
-            st.markdown(f"**Jerry:** {reply}")
-        except Exception as e:
-            st.error(f"API Error: {str(e)}")
+        st.error("Please enter a valid U.S. property address.")
 
 with st.expander("💬 Show Chat History"):
     for msg in st.session_state.chat_history:
         st.write(f"**{msg['role'].capitalize()}**: {msg['content']}")
-

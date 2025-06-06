@@ -3,9 +3,14 @@ import streamlit as st
 import os
 import re
 from openai import OpenAI
+from urllib.parse import quote_plus
+import smtplib
+from email.message import EmailMessage
+
 from helpers.property_api import get_property_data
 from helpers.web_search import search_property_google
 from helpers.summary_export import create_pdf_report
+from helpers.scraper import scrape_listing_page
 
 def parse_address(raw_input):
     raw = raw_input.strip()
@@ -64,7 +69,17 @@ if user_input:
                 pdf_path = f"/tmp/{street.replace(' ', '_')}_{zip_code}_summary.pdf"
                 create_pdf_report(f"{street}, {city}, {state} {zip_code}", valuation, cash_offer, comps, pdf_path)
                 with open(pdf_path, "rb") as pdf_file:
-                    st.download_button(
+                    
+                        # Embedded Google Maps preview
+                        address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
+                        
+                        # Show basic embedded map using a public Google Maps URL
+                        address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
+                        st.markdown(f"### 🗺️ Google Maps Preview")
+                        st.components.v1.iframe(f"https://maps.google.com/maps?q={address_encoded}&output=embed", width=600, height=450)
+
+    
+                        st.download_button(
                         label="📄 Download Property Summary PDF",
                         data=pdf_file,
                         file_name=os.path.basename(pdf_path),
@@ -75,7 +90,60 @@ if user_input:
             else:
                 st.warning("No valuation data available.")
         else:
+            
             st.warning("Primary API failed. Trying web search for public data...")
+            google_data = search_property_google(f"{street}, {city}, {state} {zip_code}")
+            if google_data and "organic_results" in google_data:
+                links = google_data["organic_results"]
+                found = False
+                for item in links[:3]:
+                    url = item["link"]
+                    image_url = item.get("thumbnail")
+                    scraped = scrape_listing_page(url)
+                    if scraped and scraped["price"]:
+                        found = True
+                        price_val = int(scraped["price"].replace("$", "").replace(",", ""))
+                        cash_offer = int(price_val * 0.6)
+                        st.markdown(f"""
+🔗 **Source:** [{item['title']}]({url})
+
+📍 **Address:** {street}, {city}, {state} {zip_code}  
+💰 **Listed Price:** {scraped['price']}  
+🛏 **Beds:** {scraped.get('beds', 'N/A')}  
+🛁 **Baths:** {scraped.get('baths', 'N/A')}  
+📐 **Sqft:** {scraped.get('sqft', 'N/A')}  
+📝 **Description:** {scraped.get('description', 'N/A')[:300]}...
+
+💸 **60% ARV Cash Offer:** ${cash_offer:,}  
+📑 **Creative Subto Offer:** Full price + seller equity payout terms  
+                        """)
+
+                        # Generate PDF
+                        pdf_path = f"/tmp/{street.replace(' ', '_')}_{zip_code}_scraped_summary.pdf"
+                        create_pdf_report(f"{street}, {city}, {state} {zip_code}", price_val, cash_offer, [scraped.get('description', 'N/A')], pdf_path, image_url=image_url)
+                        with open(pdf_path, "rb") as pdf_file:
+                            
+                        # Embedded Google Maps preview
+                        address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
+                        
+                        # Show basic embedded map using a public Google Maps URL
+                        address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
+                        st.markdown(f"### 🗺️ Google Maps Preview")
+                        st.components.v1.iframe(f"https://maps.google.com/maps?q={address_encoded}&output=embed", width=600, height=450)
+
+    
+                        st.download_button(
+                                label="📄 Download Property Summary PDF",
+                                data=pdf_file,
+                                file_name=os.path.basename(pdf_path),
+                                mime="application/pdf"
+                            )
+                        break
+                if not found:
+                    st.error("Couldn't extract structured data from the listings found.")
+            else:
+                st.error("Couldn't find any public listings or property data.")
+
             google_data = search_property_google(f"{street}, {city}, {state} {zip_code}")
             if google_data and "organic_results" in google_data:
                 links = google_data["organic_results"]

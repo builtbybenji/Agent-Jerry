@@ -79,7 +79,7 @@ if user_input:
     address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
     st.markdown(f"### 🗺️ Google Maps Preview")
     st.components.v1.iframe(f"https://maps.google.com/maps?q={address_encoded}&output=embed", width=600, height=450)
-                                            st.download_button(
+                                                st.download_button(
         label='📄 Download Property Summary PDF',
         data=pdf_file,
         file_name=os.path.basename(pdf_path),
@@ -150,7 +150,7 @@ scraped = scrape_listing_page(url)
     address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
     st.markdown(f"### 🗺️ Google Maps Preview")
     st.components.v1.iframe(f"https://maps.google.com/maps?q={address_encoded}&output=embed", width=600, height=450)
-                                                            st.download_button(
+                                                                st.download_button(
         label='📄 Download Property Summary PDF',
         data=pdf_file,
         file_name=os.path.basename(pdf_path),

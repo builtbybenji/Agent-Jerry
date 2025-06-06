@@ -1,5 +1,9 @@
 
 import streamlit as st
+
+# 🔧 Enable test mode to use mock data instead of real scraping and email sending
+TEST_MODE = st.sidebar.toggle('🧪 Enable Test Mode', value=True)
+DEBUG_LOG = []
 import os
 import re
 from openai import OpenAI
@@ -69,17 +73,24 @@ if user_input:
                 pdf_path = f"/tmp/{street.replace(' ', '_')}_{zip_code}_summary.pdf"
                 create_pdf_report(f"{street}, {city}, {state} {zip_code}", valuation, cash_offer, comps, pdf_path)
                 with open(pdf_path, "rb") as pdf_file:
-                    
-    # Embedded Google Maps preview
+                                        # Embedded Google Maps preview
     address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
-                        
-    # Show basic embedded map using a public Google Maps URL
+                                        # Show basic embedded map using a public Google Maps URL
     address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
     st.markdown(f"### 🗺️ Google Maps Preview")
     st.components.v1.iframe(f"https://maps.google.com/maps?q={address_encoded}&output=embed", width=600, height=450)
+                                            st.download_button(
+        label='📄 Download Property Summary PDF',
+        data=pdf_file,
+        file_name=os.path.basename(pdf_path),
+        mime='application/pdf'
+    )
 
-    
-    st.download_button(
+    if DEBUG_LOG:
+        st.sidebar.markdown('### 🐞 Debug Log')
+        for log in DEBUG_LOG:
+            st.sidebar.code(log)
+st.download_button(
                         label="📄 Download Property Summary PDF",
                         data=pdf_file,
                         file_name=os.path.basename(pdf_path),
@@ -99,7 +110,18 @@ if user_input:
                 for item in links[:3]:
                     url = item["link"]
                     image_url = item.get("thumbnail")
-                    scraped = scrape_listing_page(url)
+                    if TEST_MODE:
+                    DEBUG_LOG.append('✅ Using mock property data (Test Mode)')
+scraped = {
+                        'price': '$450,000',
+                        'beds': '3',
+                        'baths': '2',
+                        'sqft': '1800',
+                        'description': 'Test mode: Beautiful 3 bed, 2 bath home with 1800 sqft and a garage.'
+                    }
+                else:
+                    DEBUG_LOG.append('🔍 Scraping listing page for real data')
+scraped = scrape_listing_page(url)
                     if scraped and scraped["price"]:
                         found = True
                         price_val = int(scraped["price"].replace("$", "").replace(",", ""))
@@ -122,17 +144,24 @@ if user_input:
                         pdf_path = f"/tmp/{street.replace(' ', '_')}_{zip_code}_scraped_summary.pdf"
                         create_pdf_report(f"{street}, {city}, {state} {zip_code}", price_val, cash_offer, [scraped.get('description', 'N/A')], pdf_path, image_url=image_url)
                         with open(pdf_path, "rb") as pdf_file:
-                            
-    # Embedded Google Maps preview
+                                                        # Embedded Google Maps preview
     address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
-                        
-    # Show basic embedded map using a public Google Maps URL
+                                                        # Show basic embedded map using a public Google Maps URL
     address_encoded = quote_plus(f"{street}, {city}, {state} {zip_code}")
     st.markdown(f"### 🗺️ Google Maps Preview")
     st.components.v1.iframe(f"https://maps.google.com/maps?q={address_encoded}&output=embed", width=600, height=450)
+                                                            st.download_button(
+        label='📄 Download Property Summary PDF',
+        data=pdf_file,
+        file_name=os.path.basename(pdf_path),
+        mime='application/pdf'
+    )
 
-    
-    st.download_button(
+    if DEBUG_LOG:
+        st.sidebar.markdown('### 🐞 Debug Log')
+        for log in DEBUG_LOG:
+            st.sidebar.code(log)
+st.download_button(
                                 label="📄 Download Property Summary PDF",
                                 data=pdf_file,
                                 file_name=os.path.basename(pdf_path),
